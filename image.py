@@ -1,7 +1,9 @@
-"""Generate an 800x480 PNG summarizing MBTA departures and simple weather.
+"""WARNING: This file is fully vibe coded
+
+Generate an 800x480 PNG summarizing MBTA departures and simple weather.
 
 This module builds a display image for an e-paper panel using Pillow.
-It supports optional SVG icon rendering when `cairosvg` is installed.
+SVG icon rendering is supported and requires the `cairosvg` package.
 """
 
 from PIL import Image, ImageDraw, ImageFont
@@ -12,6 +14,8 @@ from datetime import datetime
 import cairosvg
 
 def _load_font(size, bold=False):
+    # Try a few common system font paths; fall back to PIL's default bitmap
+    # font when no truetype fonts are available.
     paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -26,36 +30,28 @@ def _load_font(size, bold=False):
 
 
 def _open_icon(path, size=(32, 32)):
-    """Open an icon file. If it's an SVG, try converting with cairosvg; otherwise open with PIL.
-
-    Returns a PIL Image or None on failure.
+    """Open an SVG icon by converting it with cairosvg and returning a
+    Pillow RGBA image sized to `size`. Returns None on failure.
     """
     if not path:
         return None
     try:
-        im = Image.open(path)
-        im = im.convert("RGBA")
+        png_bytes = cairosvg.svg2png(url=path)
+        im = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
         resample = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
         im.thumbnail(size, resample)
         return im
     except Exception:
-        if str(path).lower().endswith('.svg'):
-            try:
-                png_bytes = cairosvg.svg2png(url=path)
-                im = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
-                resample = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
-                im.thumbnail(size, resample)
-                return im
-            except Exception:
-                return None
         return None
 
 
 def create_image(departures, weather):
     """Create an 800x480 PNG summarizing departures and weather.
 
-    departures: list of dicts, each with 'name' and 'departures' (list of strings)
-    weather: dict-like with keys like 'current_temp', 'condition', 'max_temp', 'min_temp', 'rain'
+    departures: list of dicts, each with 'name' and 'departures' (list of
+    strings)
+    weather: dict-like with keys like 'current_temp', 'condition', 'max_temp',
+    'min_temp', 'rain'
 
     Returns absolute path to the generated PNG file.
     """
@@ -71,6 +67,7 @@ def create_image(departures, weather):
 
     padding = 16
 
+    # Header text centered at the top of the canvas.
     title = "MBTA Live Departures"
     try:
         bbox = draw.textbbox((0, 0), title, font=title_font)
@@ -79,14 +76,17 @@ def create_image(departures, weather):
         title_w, _ = draw.textsize(title, font=title_font)
     draw.text(((W - title_w) / 2, padding), title, font=title_font, fill="black")
 
+    # Top divider below the title
     draw.line([(padding, 72), (W - padding, 72)], fill="black", width=2)
 
+    # Extract weather fields
     cur_temp = weather.get("current_temp") if isinstance(weather, dict) else None
     cond = weather.get("condition") if isinstance(weather, dict) else None
     max_t = weather.get("max_temp") if isinstance(weather, dict) else None
     min_t = weather.get("min_temp") if isinstance(weather, dict) else None
     rain = weather.get("rain") if isinstance(weather, dict) else None
 
+    # Weather banner
     banner_y = 80
     banner_h = 56
     parts = []
@@ -108,9 +108,11 @@ def create_image(departures, weather):
     banner_y_offset = banner_y + (banner_h - text_h) / 2
     draw.text((banner_x, banner_y_offset), banner_text, font=text_font, fill="black")
 
+    # Divider below weather banner
     divider_y = banner_y + banner_h + 12
     draw.line([(padding, divider_y), (W - padding, divider_y)], fill="black", width=2)
 
+    # Departures area
     dep_area_w = W - 2 * padding
     dep_x = padding
     dep_y = banner_y + banner_h + 24
@@ -119,6 +121,7 @@ def create_image(departures, weather):
     base_dep_line_h = 18
     box_h = H - dep_y - 36
     
+    # Show up to 9 stations arranged in 3 columns
     max_stations = 9
     cols = 3
     stations = departures[:max_stations] if departures else []
@@ -130,10 +133,12 @@ def create_image(departures, weather):
     if not stations:
         draw.text((dep_x, dep_y), "No departure data", font=text_font, fill="black")
     else:
+        # Determine vertical spacing so items fit within the available box.
         rows = per_col if per_col else len(stations)
         available_height = box_h - 24
         per_station_h = max(20, available_height // max(1, rows))
 
+        # Compute how many departure time lines fit under the station name.
         max_lines_per_station = 3
         usable_for_deps = per_station_h - base_station_name_h - station_gap
         if usable_for_deps <= 0:
@@ -141,6 +146,7 @@ def create_image(departures, weather):
         else:
             dep_lines = min(max_lines_per_station, max(1, usable_for_deps // 12))
 
+        # Recompute per-line height for departure rows.
         if dep_lines > 0:
             dep_line_h = max(10, usable_for_deps // dep_lines)
         else:
@@ -155,10 +161,12 @@ def create_image(departures, weather):
             sx = left_offset + col * (col_w + col_gap)
             sy = dep_y + row * per_station_h
 
+            # Extract station fields; data may be a simple string or dict.
             name = station.get("name") if isinstance(station, dict) else str(station)
             deps = station.get("departures", []) if isinstance(station, dict) else []
             icon_path = station.get("icon") if isinstance(station, dict) else None
 
+            # Load and paste icon if available
             icon_im = _open_icon(icon_path, size=icon_size) if icon_path else None
             if icon_im:
                 img.paste(icon_im, (sx, sy), icon_im)
@@ -166,6 +174,8 @@ def create_image(departures, weather):
             else:
                 text_x = sx
 
+            # Truncate long station names to fit the column width, using an
+            # ellipsis when necessary.
             max_name_w = col_w - (icon_size[0] + 12)
             try:
                 name_bbox = draw.textbbox((0, 0), name, font=text_font)
@@ -190,9 +200,11 @@ def create_image(departures, weather):
                     d_str = str(d)
                     draw.text((text_x, ypos), d_str, font=small_font, fill="black")
 
+    # Footer timestamp
     footer = "Updated: " + datetime.now().strftime("%Y-%m-%d %H:%M")
     draw.text((padding, H - 22), footer, font=small_font, fill="black")
 
+    # Ensure output directory exists
     out_dir = os.path.join(os.path.dirname(__file__), "images")
     try:
         os.makedirs(out_dir, exist_ok=True)
