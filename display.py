@@ -15,7 +15,6 @@ def display(image_path):
 		Himage = Himage.resize((800, 480))
 		epd.display(epd.getbuffer(Himage))
 		time.sleep(3)
-		epd.Clear()
 
 		epd.sleep()
 
