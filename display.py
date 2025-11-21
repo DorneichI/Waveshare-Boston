@@ -9,7 +9,6 @@ def display(image_path):
 	try:
 		epd = epd7in3e.EPD()
 		epd.init()
-		epd.Clear()
 
 		Himage = Image.open(image_path)
 		Himage = Himage.resize((800, 480))

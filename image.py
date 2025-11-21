@@ -93,7 +93,7 @@ def create_image(departures, weather):
     if cur_temp is not None:
         parts.append(f"temp {cur_temp}\u00B0C")
     if max_t is not None and min_t is not None:
-        parts.append(f"high {max_t}\u00B0C low {min_t}\u00B0C")
+        parts.append(f"high {max_t}\u00B0C - low {min_t}\u00B0C")
     if rain is not None:
         parts.append(f"rain {rain}%")
     banner_text = "  |  ".join(parts) if parts else "Weather data unavailable"
