@@ -1,11 +1,10 @@
-import sys
-import os
+"""Display helper for the Waveshare 7.3" e-paper panel."""
+
 from waveshare_epd import epd7in3e
-import time
-from PIL import Image,ImageDraw,ImageFont
-import traceback
+from PIL import Image
 
 def display(image_path):
+	"""Display the image at ``image_path`` on the e-paper panel."""
 	try:
 		epd = epd7in3e.EPD()
 		epd.init()
@@ -13,7 +12,6 @@ def display(image_path):
 		Himage = Image.open(image_path)
 		Himage = Himage.resize((800, 480))
 		epd.display(epd.getbuffer(Himage))
-		time.sleep(3)
 
 		epd.sleep()
 
