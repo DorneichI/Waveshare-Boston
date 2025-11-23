@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-TIME_ZONE = os.getenv("TZ")
+TIME_ZONE = os.getenv("TZ") or "America/New_York"
 
 
 def _load_font(size, bold=False):
