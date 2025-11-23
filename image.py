@@ -11,7 +11,14 @@ import os
 import io
 import math
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import cairosvg
+from dotenv import load_dotenv
+
+
+load_dotenv()
+TIME_ZONE = os.getenv("TZ")
+
 
 def _load_font(size, bold=False):
     # Try a few common system font paths; fall back to PIL's default bitmap
@@ -201,7 +208,7 @@ def create_image(departures, weather):
                     draw.text((text_x, ypos), d_str, font=small_font, fill="black")
 
     # Footer timestamp
-    footer = "Updated: " + datetime.now().strftime("%Y-%m-%d %H:%M")
+    footer = "Updated: " + datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d %H:%M")
     draw.text((padding, H - 22), footer, font=small_font, fill="black")
 
     # Ensure output directory exists

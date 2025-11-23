@@ -6,9 +6,12 @@ import os
 import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
 
 
 FEED_URL = "https://cdn.mbta.com/realtime/TripUpdates.pb"
+load_dotenv()
+TIME_ZONE = os.getenv("TZ")
 
 
 def _get_trip_updates():
@@ -43,7 +46,6 @@ def _get_next_departures():
 
 	departures_times = {stop_id: [] for stop_id in stop_ids}
 
-	tz_boston = ZoneInfo("America/New_York")
 
 	for entity in feed.entity:
 		if entity.HasField("trip_update"):
@@ -53,9 +55,8 @@ def _get_next_departures():
 				if stop_id in stop_ids:
 					dep = stop_time_update.departure.time if stop_time_update.HasField("departure") else None
 					if dep:
-						dt_utc = datetime.fromtimestamp(dep, tz=timezone.utc)
-						dt_boston = dt_utc.astimezone(tz_boston)
-						departures_times[stop_id].append(dt_boston)
+						dt = datetime.fromtimestamp(dep, tz=ZoneInfo(TIME_ZONE))
+						departures_times[stop_id].append(dt)
 
 	return departures_times
 
