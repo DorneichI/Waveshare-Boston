@@ -5,6 +5,7 @@ from google.transit import gtfs_realtime_pb2
 import os
 import json
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 
 FEED_URL = "https://cdn.mbta.com/realtime/TripUpdates.pb"
@@ -42,6 +43,8 @@ def _get_next_departures():
 
 	departures_times = {stop_id: [] for stop_id in stop_ids}
 
+	tz_boston = ZoneInfo("America/New_York")
+
 	for entity in feed.entity:
 		if entity.HasField("trip_update"):
 			trip = entity.trip_update
@@ -50,7 +53,9 @@ def _get_next_departures():
 				if stop_id in stop_ids:
 					dep = stop_time_update.departure.time if stop_time_update.HasField("departure") else None
 					if dep:
-						departures_times[stop_id].append(datetime.fromtimestamp(dep))
+						dt_utc = datetime.fromtimestamp(dep, tz=timezone.utc)
+						dt_boston = dt_utc.astimezone(tz_boston)
+						departures_times[stop_id].append(dt_boston)
 
 	return departures_times
 
