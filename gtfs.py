@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 
 FEED_URL = "https://cdn.mbta.com/realtime/TripUpdates.pb"
 load_dotenv()
-# default to America/New_York when TZ not set
 TIME_ZONE = os.getenv("TZ") or "America/New_York"
 
 
@@ -39,41 +38,25 @@ def _get_stop_ids():
 	return stop_ids
 
 
-def _get_next_departures(stop_ids, max_per_stop=2):
+def _get_next_departures():
 	"""Return a mapping of stop_id -> list of upcoming datetimes."""
 	feed = _get_trip_updates()
 
-	stop_ids_set = set(stop_ids)
-	departures_epochs = {stop_id: [] for stop_id in stop_ids_set}
-	remaining = set(stop_ids_set)
+	stop_ids = _get_stop_ids()
 
-	local_tz = ZoneInfo(TIME_ZONE)
+	departures_times = {stop_id: [] for stop_id in stop_ids}
 
-	done = False
+
 	for entity in feed.entity:
 		if entity.HasField("trip_update"):
-			for stop_time_update in entity.trip_update.stop_time_update:
+			trip = entity.trip_update
+			for stop_time_update in trip.stop_time_update:
 				stop_id = stop_time_update.stop_id
-				if stop_id not in remaining:
-					continue
-				if stop_time_update.HasField("departure") and stop_time_update.departure.time:
-					departures_epochs[stop_id].append(stop_time_update.departure.time)
-					if len(departures_epochs[stop_id]) >= max_per_stop:
-						remaining.discard(stop_id)
-						if not remaining:
-							done = True
-							break
-		if done:
-			break
-
-	# Convert kept epoch seconds to timezone-aware datetimes and sort
-	departures_times = {}
-	for stop_id, epochs in departures_epochs.items():
-		if not epochs:
-			departures_times[stop_id] = []
-			continue
-		selected = sorted(epochs)[:max_per_stop]
-		departures_times[stop_id] = [datetime.fromtimestamp(e, tz=timezone.utc).astimezone(local_tz) for e in selected]
+				if stop_id in stop_ids:
+					dep = stop_time_update.departure.time if stop_time_update.HasField("departure") else None
+					if dep:
+						dt = datetime.fromtimestamp(dep, tz=ZoneInfo(TIME_ZONE))
+						departures_times[stop_id].append(dt)
 
 	return departures_times
 
@@ -86,21 +69,19 @@ def get_departures_by_stop():
 	time strings). The function limits the returned departure times to the
 	next two times per stop.
 	"""
-	# Load stops once and pass stop IDs into the optimized collector
+	departures = _get_next_departures()
+
 	stops_path = os.path.join(os.path.dirname(__file__), "stops.json")
 	with open(stops_path, "r") as file:
 		stops = json.load(file)
 
 	stop_data = {str(stop["id"]): {"name": stop["name"], "icon": stop["icon"]} for stop in stops["stops"]}
-	stop_ids = list(stop_data.keys())
-
-	departures = _get_next_departures(stop_ids, max_per_stop=2)
 
 	stations = []
 	for stop_id, times in departures.items():
 		if stop_id in stop_data:
 			stop_info = stop_data[stop_id]
-			formatted_times = [t.strftime('%H:%M') for t in times]
+			formatted_times = [time.strftime('%H:%M') for time in sorted(times)[:2]]
 			stations.append({
 				"stop_id": stop_id,
 				"name": stop_info["name"],
